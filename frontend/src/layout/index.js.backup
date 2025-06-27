@@ -1,0 +1,716 @@
+import React, { useState, useContext, useEffect } from "react";
+import clsx from "clsx";
+import moment from "moment";
+import {
+  makeStyles,
+  Drawer,
+  AppBar,
+  Toolbar,
+  List,
+  Typography,
+  Divider,
+  MenuItem,
+  IconButton,
+  Menu,
+  useTheme,
+  useMediaQuery,
+} from "@material-ui/core";
+
+import MenuIcon from "@material-ui/icons/Menu";
+import ChevronLeftIcon from "@material-ui/icons/ChevronLeft";
+import AccountCircle from "@material-ui/icons/AccountCircle";
+import CachedIcon from "@material-ui/icons/Cached";
+
+import MainListItems from "./MainListItems";
+import NotificationsPopOver from "../components/NotificationsPopOver";
+import NotificationsVolume from "../components/NotificationsVolume";
+import UserModal from "../components/UserModal";
+import { AuthContext } from "../context/Auth/AuthContext";
+import BackdropLoading from "../components/BackdropLoading";
+import DarkMode from "../components/DarkMode";
+import { i18n } from "../translate/i18n";
+import toastError from "../errors/toastError";
+import AnnouncementsPopover from "../components/AnnouncementsPopover";
+
+import logo from "../assets/logo.png";
+import { SocketContext } from "../context/Socket/SocketContext";
+import ChatPopover from "../pages/Chat/ChatPopover";
+
+import { useDate } from "../hooks/useDate";
+
+import ColorModeContext from "../layout/themeContext";
+import Brightness4Icon from '@material-ui/icons/Brightness4';
+import Brightness7Icon from '@material-ui/icons/Brightness7';
+import LanguageControl from "../components/LanguageControl";
+import { LanguageOutlined } from "@material-ui/icons";
+
+const drawerWidth = 240;
+
+// Hook personalizado para gerenciar responsividade
+const useResponsiveDrawer = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isTablet = useMediaQuery(theme.breakpoints.down("md"));
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerVariant, setDrawerVariant] = useState("permanent");
+
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      
+      if (width < 600) {
+        // Mobile: drawer sempre temporário e fechado por padrão
+        setDrawerVariant("temporary");
+        setDrawerOpen(false);
+      } else if (width < 960) {
+        // Tablet: drawer temporário mas pode ser aberto
+        setDrawerVariant("temporary");
+        setDrawerOpen(false);
+      } else {
+        // Desktop: drawer permanente e aberto por padrão
+        setDrawerVariant("permanent");
+        setDrawerOpen(true);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  const toggleDrawer = () => {
+    setDrawerOpen(!drawerOpen);
+  };
+
+  const closeDrawer = () => {
+    if (isMobile) {
+      setDrawerOpen(false);
+    }
+  };
+
+  const openDrawer = () => {
+    if (isMobile) {
+      setDrawerOpen(true);
+    }
+  };
+
+  return {
+    drawerOpen,
+    drawerVariant,
+    isMobile,
+    isTablet,
+    toggleDrawer,
+    closeDrawer,
+    openDrawer,
+    setDrawerOpen
+  };
+};
+
+const useStyles = makeStyles((theme) => ({
+  root: {
+    display: "flex",
+    height: "100vh",
+    backgroundColor: theme.palette.fancyBackground,
+    [theme.breakpoints.down("sm")]: {
+      height: "100vh",
+    },
+    '& .MuiButton-outlinedPrimary': {
+      color: "#fff",
+      backgroundColor: theme.palette.primary.main,
+    },
+    '& .MuiTab-textColorPrimary.Mui-selected': {
+      color: theme.palette.primary.main,
+    }
+  },
+  toolbar: {
+    paddingRight: theme.spacing(3),
+    paddingLeft: theme.spacing(3),
+    color: '#1a1a1a',
+    backgroundColor: '#ffffff',
+    background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+    borderBottom: '2px solid #e2e8f0',
+    minHeight: 72,
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+    position: 'relative',
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: '3px',
+      background: 'linear-gradient(90deg, #667eea 0%, #764ba2 50%, #667eea 100%)',
+    },
+    [theme.breakpoints.down("sm")]: {
+      paddingRight: theme.spacing(2),
+      paddingLeft: theme.spacing(2),
+      minHeight: 64,
+    },
+    [theme.breakpoints.down("xs")]: {
+      paddingRight: theme.spacing(1),
+      paddingLeft: theme.spacing(1),
+      minHeight: 56,
+    },
+  },
+  toolbarIcon: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: theme.spacing(0, 1),
+    [theme.breakpoints.down("sm")]: {
+      padding: theme.spacing(0, 0.5),
+    },
+  },
+  appBar: {
+    zIndex: theme.zIndex.drawer + 1,
+    transition: theme.transitions.create(["width", "margin"], {
+      easing: theme.transitions.easing.sharp,
+      duration: theme.transitions.duration.leavingScreen,
+    }),
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+      marginLeft: 0,
+    },
+  },
+  appBarShift: {
+    marginLeft: drawerWidth,
+    width: `calc(100% - ${drawerWidth}px)`,
+    transition: theme.transitions.create(["width", "margin"], {
+      easing: theme.transitions.easing.sharp,
+      duration: theme.transitions.duration.enteringScreen,
+    }),
+    [theme.breakpoints.down("sm")]: {
+      width: "100%",
+      marginLeft: 0,
+    }
+  },
+
+  menuButtonHidden: {
+    display: "none",
+  },
+  title: {
+    flexGrow: 1,
+    fontSize: 18,
+    fontWeight: 700,
+    color: "#1a202c",
+    letterSpacing: 0.3,
+    position: 'relative',
+    zIndex: 1,
+    [theme.breakpoints.down("sm")]: {
+      fontSize: 16,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+    },
+    [theme.breakpoints.down("xs")]: {
+      fontSize: 14,
+    },
+  },
+  welcomeText: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing(1),
+    '& .greeting': {
+      fontWeight: 500,
+      color: '#64748b',
+      fontSize: '0.95em',
+    },
+    '& .userName': {
+      fontWeight: 800,
+      color: '#667eea',
+      fontSize: '1.1em',
+      textTransform: 'capitalize',
+    },
+    '& .companyName': {
+      fontWeight: 700,
+      color: '#1a202c',
+      fontSize: '1.05em',
+    },
+    '& .statusInfo': {
+      fontSize: '0.8em',
+      color: '#10b981',
+      fontWeight: 600,
+      backgroundColor: '#dcfce7',
+      padding: '2px 8px',
+      borderRadius: '12px',
+      marginLeft: theme.spacing(1),
+    },
+  },
+  drawerPaper: {
+    position: "relative",
+    width: drawerWidth,
+    whiteSpace: "nowrap",
+    backgroundColor: theme.palette.drawerBackground,
+    transition: theme.transitions.create("width", {
+      easing: theme.transitions.easing.sharp,
+      duration: theme.transitions.duration.enteringScreen,
+    }),
+    [theme.breakpoints.down("sm")]: {
+      width: drawerWidth,
+      position: "fixed",
+    },
+    ...theme.scrollbarStylesSoft,
+  },
+  drawerPaperClose: {
+    overflowX: "hidden",
+    width: theme.spacing(7),
+    transition: theme.transitions.create("width", {
+      easing: theme.transitions.easing.sharp,
+      duration: theme.transitions.duration.leavingScreen,
+    }),
+    [theme.breakpoints.up("sm")]: {
+      width: theme.spacing(9),
+    },
+    [theme.breakpoints.down("sm")]: {
+      width: 0,
+      overflow: "hidden",
+    },
+  },
+  appBarSpacer: {
+    minHeight: 72,
+    [theme.breakpoints.down("sm")]: {
+      minHeight: 64,
+    },
+    [theme.breakpoints.down("xs")]: {
+      minHeight: 56,
+    },
+  },
+  content: {
+    flex: 1,
+    overflow: "auto",
+    padding: theme.spacing(2),
+    [theme.breakpoints.down("sm")]: {
+      padding: theme.spacing(1),
+    },
+    [theme.breakpoints.down("xs")]: {
+      padding: theme.spacing(0.5),
+    },
+  },
+  containerWithScroll: {
+    flex: 1,
+    padding: theme.spacing(1),
+    overflowY: "auto",
+    ...theme.scrollbarStyles,
+  },
+  logo: {
+    width: "70%",
+    maxWidth: 160,
+    height: "auto",
+    filter: theme.palette.type === "dark" ? "brightness(0.9) drop-shadow(0 2px 4px rgba(0,0,0,0.3))" : "drop-shadow(0 2px 4px rgba(0,0,0,0.2))",
+    transition: 'transform 0.2s ease-in-out, filter 0.2s ease-in-out',
+    '&:hover': {
+      transform: 'scale(1.05)',
+      filter: theme.palette.type === "dark" ? "brightness(1.1) drop-shadow(0 4px 8px rgba(0,0,0,0.4))" : "brightness(1.1) drop-shadow(0 4px 8px rgba(0,0,0,0.3))",
+    },
+    [theme.breakpoints.down("sm")]: {
+      width: "auto",
+      maxWidth: 140,
+    },
+    [theme.breakpoints.down("xs")]: {
+      maxWidth: 120,
+    },
+  },
+  headerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    marginLeft: 'auto',
+    gap: theme.spacing(1),
+    position: 'relative',
+    zIndex: 1,
+    backgroundColor: '#ffffff',
+    padding: theme.spacing(1, 2),
+    borderRadius: '20px',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+    border: '1px solid #e2e8f0',
+    [theme.breakpoints.down("sm")]: {
+      gap: theme.spacing(0.5),
+      padding: theme.spacing(0.5, 1),
+      borderRadius: '16px',
+    },
+    [theme.breakpoints.down("xs")]: {
+      gap: theme.spacing(0.25),
+      padding: theme.spacing(0.5),
+      borderRadius: '12px',
+    },
+  },
+  headerActionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: '12px',
+    padding: 0,
+    minWidth: 'unset',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    backgroundColor: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    color: '#64748b',
+    position: 'relative',
+    overflow: 'hidden',
+    '&:before': {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      left: '-100%',
+      width: '100%',
+      height: '100%',
+      background: 'linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.4), transparent)',
+      transition: 'left 0.5s',
+    },
+    '&:hover': {
+      backgroundColor: '#667eea',
+      color: '#ffffff',
+      transform: 'translateY(-2px) scale(1.05)',
+      boxShadow: '0 8px 25px rgba(102, 126, 234, 0.3)',
+      borderColor: '#667eea',
+      '&:before': {
+        left: '100%',
+      },
+    },
+    '&:active': {
+      transform: 'translateY(0) scale(1)',
+    },
+    [theme.breakpoints.down("sm")]: {
+      width: 36,
+      height: 36,
+      borderRadius: '10px',
+    },
+    [theme.breakpoints.down("xs")]: {
+      width: 32,
+      height: 32,
+      borderRadius: '8px',
+    },
+  },
+     menuButton: {
+     marginRight: theme.spacing(3),
+     width: 48,
+     height: 48,
+     borderRadius: '16px',
+     padding: 0,
+     minWidth: 'unset',
+     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+     backgroundColor: '#ffffff',
+     border: '2px solid #e2e8f0',
+     color: '#667eea',
+     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+     '&:hover': {
+       backgroundColor: '#667eea',
+       color: '#ffffff',
+       transform: 'translateY(-2px) rotate(180deg)',
+       boxShadow: '0 12px 30px rgba(102, 126, 234, 0.3)',
+       borderColor: '#667eea',
+     },
+     '&:active': {
+       transform: 'translateY(0) rotate(180deg)',
+     },
+     [theme.breakpoints.down("sm")]: {
+       marginRight: theme.spacing(2),
+       width: 44,
+       height: 44,
+       borderRadius: '14px',
+     },
+     [theme.breakpoints.down("xs")]: {
+       marginRight: theme.spacing(1),
+       width: 40,
+       height: 40,
+       borderRadius: '12px',
+     },
+   },
+  statusIndicatorHeader: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    backgroundColor: '#4caf50',
+    border: '1px solid #fff',
+    boxShadow: '0 0 6px rgba(76, 175, 80, 0.6)',
+    animation: '$pulseHeader 2s infinite',
+  },
+  '@keyframes pulseHeader': {
+    '0%': {
+      boxShadow: '0 0 0 0 rgba(76, 175, 80, 0.7)',
+    },
+    '70%': {
+      boxShadow: '0 0 0 6px rgba(76, 175, 80, 0)',
+    },
+    '100%': {
+      boxShadow: '0 0 0 0 rgba(76, 175, 80, 0)',
+    },
+  },
+}));
+
+
+const LoggedInLayout = ({ children, themeToggle }) => {
+  const classes = useStyles();
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { handleLogout, loading } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
+
+  const theme = useTheme();
+  const { colorMode } = useContext(ColorModeContext);
+  const greaterThenSm = useMediaQuery(theme.breakpoints.up("sm"));
+
+  // Usar o hook personalizado para responsividade
+  const {
+    drawerOpen,
+    drawerVariant,
+    isMobile,
+    toggleDrawer,
+    closeDrawer,
+    openDrawer,
+    setDrawerOpen
+  } = useResponsiveDrawer();
+
+  const [volume, setVolume] = useState(localStorage.getItem("volume") || 1);
+
+  const { dateToClient } = useDate();
+
+  // Languages
+  const [anchorElLanguage, setAnchorElLanguage] = useState(null);
+  const [menuLanguageOpen, setMenuLanguageOpen] = useState(false);
+
+  const socketManager = useContext(SocketContext);
+
+  useEffect(() => {
+    const companyId = localStorage.getItem("companyId");
+    const userId = localStorage.getItem("userId");
+
+    const socket = socketManager.getSocket(companyId);
+
+    socket.on(`company-${companyId}-auth`, (data) => {
+      if (data.user.id === +userId) {
+        toastError("Sua conta foi acessada em outro computador.");
+        setTimeout(() => {
+          localStorage.clear();
+          window.location.reload();
+        }, 1000);
+      }
+    });
+
+    socket.emit("userStatus");
+    const interval = setInterval(() => {
+      socket.emit("userStatus");
+    }, 1000 * 60 * 5);
+
+    return () => {
+      socket.disconnect();
+      clearInterval(interval);
+    };
+  }, [socketManager]);
+
+  const handleMenu = (event) => {
+    setAnchorEl(event.currentTarget);
+    setMenuOpen(true);
+  };
+
+  const handlemenuLanguage = ( event ) => {
+    setAnchorElLanguage(event.currentTarget);
+    setMenuLanguageOpen( true );
+  }
+
+  const handleCloseMenu = () => {
+    setAnchorEl(null);
+    setMenuOpen(false);
+  };
+
+  const handleCloseMenuLanguage = (  ) => {
+    setAnchorElLanguage(null);
+    setMenuLanguageOpen(false);
+  }
+
+  const handleOpenUserModal = () => {
+    setUserModalOpen(true);
+    handleCloseMenu();
+  };
+
+  const handleClickLogout = () => {
+    handleCloseMenu();
+    handleLogout();
+  };
+
+  const handleRefreshPage = () => {
+    window.location.reload(false);
+  }
+
+  const handleMenuItemClick = () => {
+    if (isMobile) {
+      setDrawerOpen(false);
+    }
+  };
+
+  const toggleColorMode = () => {
+    colorMode.toggleColorMode();
+  }
+
+  if (loading) {
+    return <BackdropLoading />;
+  }
+
+  return (
+    <div className={classes.root}>
+      <Drawer
+        variant={drawerVariant}
+        className={drawerOpen ? classes.drawerPaper : classes.drawerPaperClose}
+        classes={{
+          paper: clsx(
+            classes.drawerPaper,
+            !drawerOpen && classes.drawerPaperClose
+          ),
+        }}
+        open={drawerOpen}
+        onClose={isMobile ? () => setDrawerOpen(false) : undefined}
+        ModalProps={{
+          keepMounted: true, // Melhora performance em mobile
+          disableScrollLock: false, // Previne scroll do body quando drawer está aberto
+        }}
+        BackdropProps={{
+          invisible: !isMobile, // Overlay apenas em mobile
+        }}
+      >
+        <div className={classes.toolbarIcon}>
+          <img src={logo} className={classes.logo} alt="logo" />
+          {!isMobile && (
+            <IconButton onClick={toggleDrawer}>
+              <ChevronLeftIcon />
+            </IconButton>
+          )}
+        </div>
+        <Divider />
+        <List className={classes.containerWithScroll}>
+          <MainListItems drawerClose={closeDrawer} collapsed={!drawerOpen} />
+        </List>
+        <Divider />
+      </Drawer>
+      <UserModal
+        open={userModalOpen}
+        onClose={() => setUserModalOpen(false)}
+        userId={user?.id}
+      />
+      <AppBar
+        position="absolute"
+        className={clsx(classes.appBar, drawerOpen && classes.appBarShift)}
+        color="primary"
+      >
+        <Toolbar variant="dense" className={classes.toolbar}>
+          <IconButton
+            edge="start"
+            variant="contained"
+            aria-label="open drawer"
+            onClick={toggleDrawer}
+            className={clsx(
+              classes.menuButton,
+              drawerOpen && !isMobile && classes.menuButtonHidden
+            )}
+          >
+            <MenuIcon fontSize="medium" />
+          </IconButton>
+          <Typography
+            component="h2"
+            variant="h6"
+            color="inherit"
+            noWrap
+            className={clsx(classes.title, classes.welcomeText)}
+            style={{ fontWeight: 400, fontSize: isMobile ? 14 : 15 }}
+          >
+            {greaterThenSm && user?.profile === "admin" && user?.company?.dueDate ? (
+              <>
+                <span className="greeting">{i18n.t("mainDrawer.appBar.greeting.hello")}</span>
+                <span className="userName">{user.name}</span>
+                <span className="greeting">, {i18n.t("mainDrawer.appBar.greeting.welcome")}</span>
+                <span className="companyName">{user?.company?.name}</span>
+                <span className="greeting">!</span>
+                <span className="statusInfo">({i18n.t("mainDrawer.appBar.greeting.active")} {dateToClient(user?.company?.dueDate)})</span>
+              </>
+            ) : (
+              <>
+                <span className="greeting">{i18n.t("mainDrawer.appBar.greeting.hello")}</span>
+                <span className="userName">{user.name}</span>
+                <span className="greeting">, {i18n.t("mainDrawer.appBar.greeting.welcome")}</span>
+                <span className="companyName">{user?.company?.name}</span>
+                <span className="greeting">!</span>
+              </>
+            )}
+          </Typography>
+          <div className={classes.headerActions}>
+            {!isMobile && (
+              <IconButton 
+                edge="start" 
+                className={classes.headerActionButton}
+                aria-label="account of current user"
+                aria-controls="menu-appbar-language"
+                aria-haspopup="true"
+                onClick={handlemenuLanguage}
+                variant="contained"
+              >
+                <LanguageOutlined fontSize="small" />
+              </IconButton>
+            )}
+            <Menu
+              id="menu-appbar-language"
+              anchorEl={anchorElLanguage}
+              getContentAnchorEl={null}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+              open={menuLanguageOpen}
+              onClose={handleCloseMenuLanguage}
+            >
+              <MenuItem>
+                <LanguageControl />
+              </MenuItem>
+            </Menu>
+            <IconButton edge="start" onClick={toggleColorMode} className={classes.headerActionButton}>
+              {theme.mode === 'dark'
+                ? <Brightness7Icon fontSize="small" />
+                : <Brightness4Icon fontSize="small" />}
+            </IconButton>
+            {!isMobile && <NotificationsVolume setVolume={setVolume} volume={volume} />}
+            <IconButton onClick={handleRefreshPage} aria-label={i18n.t("mainDrawer.appBar.refresh")}
+              color="inherit" className={classes.headerActionButton}>
+              <CachedIcon fontSize="small" />
+            </IconButton>
+            {user.id && <NotificationsPopOver volume={volume} />}
+            <AnnouncementsPopover />
+            <ChatPopover />
+            <IconButton
+              aria-label="account of current user"
+              aria-controls="menu-appbar"
+              aria-haspopup="true"
+              onClick={handleMenu}
+              variant="contained"
+              className={classes.headerActionButton}
+            >
+              <AccountCircle fontSize="small" />
+            </IconButton>
+            <Menu
+              id="menu-appbar"
+              anchorEl={anchorEl}
+              getContentAnchorEl={null}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+              open={menuOpen}
+              onClose={handleCloseMenu}
+            >
+              <MenuItem onClick={handleOpenUserModal}>
+                {i18n.t("mainDrawer.appBar.user.profile")}
+              </MenuItem>
+              <MenuItem onClick={handleClickLogout}>
+                {i18n.t("mainDrawer.appBar.user.logout")}
+              </MenuItem>
+            </Menu>
+          </div>
+        </Toolbar>
+      </AppBar>
+      <main className={classes.content}>
+        <div className={classes.appBarSpacer} />
+        {children ? children : null}
+      </main>
+    </div>
+  );
+};
+
+export default LoggedInLayout;
